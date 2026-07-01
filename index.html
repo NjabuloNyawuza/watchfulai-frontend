@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WatchfulAI Dashboard</title>
+
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, sans-serif;
+        background: #0f0f0f;
+        color: #fff;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #header {
+        padding: 14px 24px;
+        background: #1a1a1a;
+        border-bottom: 1px solid #2a2a2a;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+      #header h1 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+      #header span.sub {
+        font-size: 0.8rem;
+        color: #666;
+        margin-left: 4px;
+      }
+
+      #stats {
+        display: flex;
+        gap: 12px;
+        padding: 10px 24px;
+        background: #111;
+        border-bottom: 1px solid #1e1e1e;
+        flex-shrink: 0;
+      }
+      .stat {
+        background: #1a1a1a;
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        padding: 8px 18px;
+        text-align: center;
+        min-width: 80px;
+      }
+      .stat .number {
+        font-size: 1.4rem;
+        font-weight: 700;
+      }
+      .stat .label {
+        font-size: 0.7rem;
+        color: #666;
+        margin-top: 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .emergency {
+        color: #ff4444;
+      }
+      .suspicious {
+        color: #ffaa00;
+      }
+      .noise {
+        color: #44bb44;
+      }
+      .neutral {
+        color: #aaa;
+      }
+
+      #body {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      #map {
+        flex: 1;
+      }
+
+      #sidebar {
+        width: 320px;
+        background: #111;
+        border-left: 1px solid #1e1e1e;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+
+      .panel-title {
+        padding: 12px 16px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #555;
+        border-bottom: 1px solid #1e1e1e;
+        background: #0f0f0f;
+      }
+
+      #report-list {
+        flex: 1;
+        overflow-y: auto;
+        border-bottom: 1px solid #1e1e1e;
+      }
+
+      .report-item {
+        padding: 10px 16px;
+        border-bottom: 1px solid #1a1a1a;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .report-item:hover {
+        background: #1a1a1a;
+      }
+
+      .report-item .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+      }
+      .badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 4px;
+        letter-spacing: 0.5px;
+      }
+      .badge.EMERGENCY {
+        background: #ff444422;
+        color: #ff4444;
+        border: 1px solid #ff444444;
+      }
+      .badge.SUSPICIOUS {
+        background: #ffaa0022;
+        color: #ffaa00;
+        border: 1px solid #ffaa0044;
+      }
+      .badge.NOISE {
+        background: #44bb4422;
+        color: #44bb44;
+        border: 1px solid #44bb4444;
+      }
+
+      .report-item .time {
+        font-size: 0.7rem;
+        color: #444;
+      }
+      .report-item .msg {
+        font-size: 0.8rem;
+        color: #bbb;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .report-item .loc {
+        font-size: 0.7rem;
+        color: #555;
+        margin-top: 2px;
+      }
+
+      #alert-log {
+        height: 200px;
+        overflow-y: auto;
+      }
+
+      .alert-item {
+        padding: 10px 16px;
+        border-bottom: 1px solid #1a1a1a;
+        font-size: 0.78rem;
+      }
+      .alert-item .alert-head {
+        color: #ff4444;
+        font-weight: 600;
+        margin-bottom: 3px;
+      }
+      .alert-item .alert-body {
+        color: #888;
+      }
+
+      #refresh-indicator {
+        padding: 6px 16px;
+        font-size: 0.7rem;
+        color: #333;
+        text-align: center;
+        border-top: 1px solid #1a1a1a;
+        flex-shrink: 0;
+      }
+
+      ::-webkit-scrollbar {
+        width: 4px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f0f0f;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #2a2a2a;
+        border-radius: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="header">
+      <span>🛡️</span>
+      <h1>WatchfulAI</h1>
+      <span class="sub">Live Security Intelligence — Johannesburg</span>
+    </div>
+
+    <div id="stats">
+      <div class="stat">
+        <div class="number emergency" id="count-emergency">0</div>
+        <div class="label">Emergency</div>
+      </div>
+      <div class="stat">
+        <div class="number suspicious" id="count-suspicious">0</div>
+        <div class="label">Suspicious</div>
+      </div>
+      <div class="stat">
+        <div class="number noise" id="count-noise">0</div>
+        <div class="label">Noise</div>
+      </div>
+      <div class="stat">
+        <div class="number neutral" id="count-total">0</div>
+        <div class="label">Total</div>
+      </div>
+      <div class="stat">
+        <div class="number neutral" id="count-sensor">0</div>
+        <div class="label">Sensor</div>
+      </div>
+      <div class="stat">
+        <div class="number neutral" id="count-whatsapp">0</div>
+        <div class="label">WhatsApp</div>
+      </div>
+    </div>
+
+    <div id="body">
+      <div id="map"></div>
+      <div id="sidebar">
+        <div class="panel-title">📋 Recent Reports</div>
+        <div id="report-list"></div>
+        <div class="panel-title">🚨 Alert Log</div>
+        <div id="alert-log"></div>
+        <div id="refresh-indicator">Refreshing every 30s</div>
+      </div>
+    </div>
+
+    <script>
+      const BACKEND = "https://watchfulai-backend-1.onrender.com";
+
+      const map = L.map("map").setView([-26.2041, 28.0473], 13);
+
+      L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution: "© OpenStreetMap © CARTO",
+          maxZoom: 19,
+        },
+      ).addTo(map);
+
+      const colourFor = (label) =>
+        ({ EMERGENCY: "#ff4444", SUSPICIOUS: "#ffaa00", NOISE: "#44bb44" })[
+          label
+        ] || "#888";
+
+      let markersLayer = L.layerGroup().addTo(map);
+      let heatLayer = null;
+      let alertLog = [];
+
+      function timeAgo(isoString) {
+        const diff = Math.floor((Date.now() - new Date(isoString)) / 1000);
+        if (diff < 60) return `${diff}s ago`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        return `${Math.floor(diff / 3600)}h ago`;
+      }
+
+      async function loadReports() {
+        const res = await fetch(`${BACKEND}/reports`);
+        const data = await res.json();
+
+        // Update stats
+        let counts = {
+          EMERGENCY: 0,
+          SUSPICIOUS: 0,
+          NOISE: 0,
+          sensor: 0,
+          whatsapp: 0,
+        };
+        data.forEach((r) => {
+          counts[r.label] = (counts[r.label] || 0) + 1;
+          if (r.source === "sensor") counts.sensor++;
+          if (r.source === "whatsapp") counts.whatsapp++;
+        });
+        document.getElementById("count-emergency").textContent =
+          counts.EMERGENCY || 0;
+        document.getElementById("count-suspicious").textContent =
+          counts.SUSPICIOUS || 0;
+        document.getElementById("count-noise").textContent = counts.NOISE || 0;
+        document.getElementById("count-total").textContent = data.length;
+        document.getElementById("count-sensor").textContent =
+          counts.sensor || 0;
+        document.getElementById("count-whatsapp").textContent =
+          counts.whatsapp || 0;
+
+        // Update map
+        markersLayer.clearLayers();
+        if (heatLayer) map.removeLayer(heatLayer);
+
+        const heatPoints = [];
+        data.forEach((r) => {
+          L.circleMarker([r.lat, r.lng], {
+            radius: r.label === "EMERGENCY" ? 9 : 6,
+            color: colourFor(r.label),
+            fillColor: colourFor(r.label),
+            fillOpacity: 0.75,
+            weight: 1,
+          })
+            .bindPopup(
+              `
+        <b style="color:${colourFor(r.label)}">${r.label}</b><br/>
+        <span style="font-size:0.85rem">${r.message}</span><br/>
+        <small style="color:#888">${r.location_name} · ${r.source}</small>
+      `,
+            )
+            .addTo(markersLayer);
+          heatPoints.push([r.lat, r.lng, r.label === "EMERGENCY" ? 1.0 : 0.5]);
+        });
+
+        heatLayer = L.heatLayer(heatPoints, {
+          radius: 35,
+          blur: 25,
+          maxZoom: 17,
+        });
+        heatLayer.addTo(map);
+
+        // Update sidebar report list
+        const list = document.getElementById("report-list");
+        list.innerHTML = data
+          .slice(0, 50)
+          .map(
+            (r) => `
+      <div class="report-item" onclick="map.flyTo([${r.lat}, ${r.lng}], 16)">
+        <div class="top">
+          <span class="badge ${r.label}">${r.label}</span>
+          <span class="time">${r.created_at ? timeAgo(r.created_at) : ""}</span>
+        </div>
+        <div class="msg">${r.message}</div>
+        <div class="loc">📍 ${r.location_name} · ${r.source}</div>
+      </div>
+    `,
+          )
+          .join("");
+
+        // Check for clusters and update alert log
+        await checkClusters();
+
+        document.getElementById("refresh-indicator").textContent =
+          `Last updated: ${new Date().toLocaleTimeString()}`;
+      }
+
+      async function checkClusters() {
+        try {
+          const res = await fetch(`${BACKEND}/clusters`);
+          const clusters = await res.json();
+          const log = document.getElementById("alert-log");
+
+          if (clusters.length > 0) {
+            clusters.forEach((c) => {
+              const entry = {
+                time: new Date().toLocaleTimeString(),
+                count: c.length,
+                label: c[0].label,
+                location: c[0].location_name,
+              };
+              alertLog.unshift(entry);
+            });
+          }
+
+          if (alertLog.length === 0) {
+            log.innerHTML = `<div class="alert-item"><div class="alert-body">No clusters detected.</div></div>`;
+          } else {
+            log.innerHTML = alertLog
+              .slice(0, 20)
+              .map(
+                (a) => `
+          <div class="alert-item">
+            <div class="alert-head">🚨 ${a.label} cluster — ${a.count} reports</div>
+            <div class="alert-body">📍 ${a.location} · ${a.time}</div>
+          </div>
+        `,
+              )
+              .join("");
+          }
+        } catch (e) {
+          console.log("Cluster check failed:", e);
+        }
+      }
+
+      loadReports();
+      setInterval(loadReports, 30000);
+    </script>
+  </body>
+</html>
